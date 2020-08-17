@@ -1,0 +1,20 @@
+server:
+  port: 9096
+  
+spring:
+   rabbitmq:
+    addresses: amqp://glhmsxca:kAL4TiJ9afBmp545D-eui3kWYoUJaxx9@shrimp.rmq.cloudamqp.com/glhmsxca
+    #addresses: amqp://admin:password@mahanadi:5672/mahanadi
+#    host: mahanadi
+#    port: 5672
+#    username: admin
+#    password: password
+   cloud:    stream:      bindings:        input.destination: orgmsg-exchange
+        input.group: orgmsg-queue
+
+    
+logging:
+  level:
+    org.asiczen: TRACE
+    org.springframework.amqp: ERROR      
+  
