@@ -18,3 +18,5 @@ logging:
     org.asiczen: TRACE
     org.springframework.amqp: ERROR      
   
+  
+BASE.URL: http://localhost:8081/api/fleet/getvehicle
