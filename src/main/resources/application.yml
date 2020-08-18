@@ -9,14 +9,18 @@ spring:
 #    port: 5672
 #    username: admin
 #    password: password
+   redis:
+    host: us1-flying-glowworm-30858.lambda.store
+    port: 30858
+    password: 75d72024332740a2bcda32dc846d2a28  
    cloud:    stream:      bindings:        input.destination: orgmsg-exchange
         input.group: orgmsg-queue
 
-    
 logging:
   level:
     org.asiczen: TRACE
     org.springframework.amqp: ERROR      
   
   
-BASE.URL: http://localhost:8081/api/fleet/getvehicle
+#BASE.URL: http://localhost:8081/api/fleet/getvehicle
+BASE.URL: https://aztrackapiqa.asiczen.com/api/fleet/getvehicle

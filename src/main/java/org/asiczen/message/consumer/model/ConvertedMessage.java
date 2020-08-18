@@ -12,6 +12,7 @@ import lombok.ToString;
 public class ConvertedMessage {
 
 	private String vehicleNumber;
+	private String vehicleType;
 	private String imeiNumber;
 	private Double longitude;
 	private Double latitude;

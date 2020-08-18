@@ -7,12 +7,14 @@ import java.util.Map;
 
 import org.asiczen.message.consumer.model.ConvertedMessage;
 import org.asiczen.message.consumer.model.OriginalMessage;
-import org.asiczen.message.consumer.response.ServiceResponse;
+import org.asiczen.message.consumer.repository.RedisVehicleServiceResponseRespository;
+import org.asiczen.message.consumer.response.VehicleServiceResponse;
 import org.asiczen.message.consumer.service.ProcessMessageService;
+import org.asiczen.message.consumer.service.VehicleInfoPublisher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
+//import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -25,11 +27,17 @@ public class ProcessMessageServiceImpl implements ProcessMessageService {
 	@Value("${BASE.URL}")
 	private String BASE_URL;
 
-	@Autowired
-	SimpMessagingTemplate messageTemplate;
+//	@Autowired
+//	SimpMessagingTemplate messageTemplate;
 
 	@Autowired
 	RestTemplate restTemplate;
+
+	@Autowired
+	RedisVehicleServiceResponseRespository redisVInfoRepo;
+
+	@Autowired
+	VehicleInfoPublisher redPubService;
 
 	@Override
 	public void processMessage(OriginalMessage message) {
@@ -49,7 +57,7 @@ public class ProcessMessageServiceImpl implements ProcessMessageService {
 			log.trace("Setting it true. This will always true as this the fresh event received from MB");
 			conmessage.setCurrent(true);
 
-			log.trace("Converting the date and time to string for displating on screen.");
+			log.trace("Converting the date and time to string for displaying on screen.");
 			try {
 
 				DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
@@ -59,6 +67,20 @@ public class ProcessMessageServiceImpl implements ProcessMessageService {
 				log.error("Error while converting the date");
 				log.error(ep.getLocalizedMessage());
 			}
+
+			VehicleServiceResponse response = getVehicleInfoFromRedis(message.getImei());
+
+			conmessage.setVehicleNumber(response.getVehicleNumber());
+			conmessage.setVehicleType(response.getVehicleType());
+			conmessage.setDriverName(response.getDriverName());
+			conmessage.setDriverContact(response.getDriverNumber());
+
+			log.info("Final converted message : {}", conmessage.toString());
+
+			redPubService.publish(conmessage);
+
+			// Publish the converted message to Redis topic
+			// Publish the converted message to Rabbit MQ
 
 		} catch (Exception ep) {
 
@@ -70,19 +92,70 @@ public class ProcessMessageServiceImpl implements ProcessMessageService {
 
 	}
 
-	/* This method is yet to get developed */
-	private ServiceResponse getVehicleInfoFromRedis(String imei) {
-		return null;
+	/*
+	 * Check in redis cache if data is already present if not present then get the
+	 * data from
+	 */
+	private VehicleServiceResponse getVehicleInfoFromRedis(String imei) {
+
+		VehicleServiceResponse response = new VehicleServiceResponse("na", "na", "na", "na");
+
+		try {
+			VehicleServiceResponse message = redisVInfoRepo.findByImei(imei);
+
+			log.trace("Message from server {} ", message.toString());
+
+			if (message != null && !message.getVehicleNumber().equalsIgnoreCase("NA")) {
+
+				if (message.getVehicleNumber() != null) {
+					response.setVehicleNumber(message.getVehicleNumber());
+				} else {
+					response.setVehicleNumber("na");
+				}
+
+				if (message.getVehicleType() != null) {
+					response.setVehicleType(message.getVehicleType());
+				} else {
+					response.setVehicleType("car");
+				}
+
+				if (message.getDriverName() != null) {
+					response.setDriverName(message.getDriverName());
+				} else {
+					response.setDriverName("na");
+				}
+
+				if (message.getDriverNumber() != null) {
+					response.setDriverNumber(message.getDriverNumber());
+				} else {
+					response.setDriverNumber("na");
+				}
+
+				log.trace("Retrieved data from redis");
+
+			} else {
+				response = getVehicleInformationFromRestService(imei);
+				redisVInfoRepo.update(response, imei);
+
+				log.trace("Retrieved data from webservice");
+			}
+
+		} catch (Exception ep) {
+			log.error("Cache miss occured " + ep.getLocalizedMessage());
+			log.warn("This was a cache miss , so now getting data from service.");
+		}
+
+		return response;
 	}
 
 	/*
 	 * Method is to get the vehicle information from database i.e by calling the web
 	 * service defined in application.properties file Finally add the map into Redis
 	 */
-	private ServiceResponse getVehicleInformation(String imei) {
+	private VehicleServiceResponse getVehicleInformationFromRestService(String imei) {
 
 		log.trace("Getting vehicle information by calling the rest web service..");
-		ServiceResponse retresponse = new ServiceResponse();
+		VehicleServiceResponse retresponse = new VehicleServiceResponse();
 
 		Map<String, String> queryParams = new HashMap<>();
 		queryParams.put("imei", imei);
@@ -91,8 +164,8 @@ public class ProcessMessageServiceImpl implements ProcessMessageService {
 
 		try {
 			log.trace("invoking rest template to get the data for IMEI");
-			ResponseEntity<ServiceResponse> response = restTemplate.getForEntity(BASE_URL + "?imei=" + imei,
-					ServiceResponse.class, queryParams);
+			ResponseEntity<VehicleServiceResponse> response = restTemplate.getForEntity(BASE_URL + "?imei=" + imei,
+					VehicleServiceResponse.class, queryParams);
 
 			if (response.getStatusCodeValue() == 200) {
 
@@ -115,6 +188,8 @@ public class ProcessMessageServiceImpl implements ProcessMessageService {
 				}
 
 			}
+
+			// now cache this data
 
 		} catch (Exception ep) {
 			log.error("Error while getting the vehicle number" + ep.getLocalizedMessage());

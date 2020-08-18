@@ -9,11 +9,10 @@ import lombok.ToString;
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString
-public class ServiceResponse {
+public class VehicleServiceResponse {
 
 	String vehicleNumber;
 	String vehicleType;
 	String driverName;
 	String driverNumber;
-
 }
